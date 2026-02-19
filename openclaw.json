@@ -1,0 +1,217 @@
+{
+  "version": "1.0",
+  "session": {
+    "mainKey": "amora",
+    "memory": {
+      "type": "QMD",
+      "paths": [
+        "shared/",
+        "shared/lessons/"
+      ]
+    }
+  },
+  "tools": {
+    "agentToAgent": true
+  },
+  "bindings": {
+    "telegram": {
+      "enabled": true,
+      "token": "${TELEGRAM_BOT_TOKEN}",
+      "mainAgent": "amora"
+    },
+    "discord": {
+      "enabled": true,
+      "token": "${DISCORD_BOT_TOKEN}",
+      "mainAgent": "amora"
+    }
+  },
+  "agents": {
+    "list": [
+      {
+        "id": "amora",
+        "name": "Amora",
+        "level": "L4",
+        "role": "Autonomous",
+        "model": "github-copilot/gpt-4o",
+        "description": "Coordenadora geral, autoridade total no domínio permitido, reporta direto ao Renaldo.",
+        "workspace": "workspaces/amora",
+        "agentDir": "workspaces/amora",
+        "sandbox": false,
+        "isDefault": true,
+        "heartbeat": "30min",
+        "triggers": ["telegram_hq", "telegram_dm"],
+        "subagents": {
+          "allowAgents": ["planner", "orchestrator", "dev", "qa", "scraper", "content"]
+        },
+        "tools": {
+          "allow": ["*"],
+          "deny": []
+        }
+      },
+      {
+        "id": "planner",
+        "name": "Planner",
+        "level": "L3",
+        "role": "Operator",
+        "model": "github-copilot/gpt-4o",
+        "description": "Planejamento estratégico, executa autônomo dentro dos guardrails, reporta resultado.",
+        "workspace": "workspaces/planner",
+        "agentDir": "workspaces/planner",
+        "sandbox": true,
+        "triggers": ["on_demand", "telegram_topic_719"],
+        "subagents": {
+          "allowAgents": ["orchestrator", "dev", "qa"]
+        },
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "list_directory",
+            "web_search",
+            "supabase_query",
+            "agent_message"
+          ],
+          "deny": [
+            "shell_exec",
+            "delete_file"
+          ]
+        }
+      },
+      {
+        "id": "orchestrator",
+        "name": "Orchestrator",
+        "level": "L2",
+        "role": "Advisor",
+        "model": "github-copilot/gpt-4o",
+        "description": "Orquestração de tarefas, recomenda ações e executa com aprovação.",
+        "workspace": "workspaces/orchestrator",
+        "agentDir": "workspaces/orchestrator",
+        "sandbox": true,
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "list_directory",
+            "supabase_query",
+            "agent_message"
+          ],
+          "deny": [
+            "shell_exec",
+            "delete_file",
+            "web_search"
+          ]
+        }
+      },
+      {
+        "id": "dev",
+        "name": "Dev",
+        "level": "L2",
+        "role": "Advisor",
+        "model": "github-copilot/gpt-4o",
+        "description": "Desenvolvimento e código, ferramentas: MC, Metricsen, MOM. Heartbeat: 10min (futuro).",
+        "workspace": "workspaces/dev",
+        "agentDir": "workspaces/dev",
+        "sandbox": true,
+        "heartbeat": "10min",
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "list_directory",
+            "shell_exec",
+            "supabase_query",
+            "agent_message",
+            "mc_tool",
+            "metricsen_tool",
+            "mom_tool"
+          ],
+          "deny": [
+            "delete_file"
+          ]
+        }
+      },
+      {
+        "id": "qa",
+        "name": "QA",
+        "level": "L2",
+        "role": "Advisor",
+        "model": "github-copilot/gpt-4o",
+        "description": "Qualidade e testes, scope: APIs, edge cases, UX. Spawned by Amora.",
+        "workspace": "workspaces/qa",
+        "agentDir": "workspaces/qa",
+        "sandbox": true,
+        "spawnedBy": "amora",
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "list_directory",
+            "shell_exec",
+            "supabase_query",
+            "agent_message",
+            "web_fetch"
+          ],
+          "deny": [
+            "delete_file"
+          ]
+        }
+      },
+      {
+        "id": "scraper",
+        "name": "Scraper",
+        "level": "L1",
+        "role": "Observer",
+        "model": "github-copilot/gpt-4o",
+        "description": "Coleta de dados: YouTube, Reddit, HN, PH, Twitter. Output sempre revisado.",
+        "workspace": "workspaces/scraper",
+        "agentDir": "workspaces/scraper",
+        "sandbox": true,
+        "sources": ["youtube", "reddit", "hackernews", "producthunt", "twitter"],
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "web_fetch",
+            "web_search"
+          ],
+          "deny": [
+            "shell_exec",
+            "delete_file",
+            "supabase_query",
+            "agent_message"
+          ]
+        }
+      },
+      {
+        "id": "content",
+        "name": "Content",
+        "level": "L1",
+        "role": "Observer",
+        "model": "github-copilot/gpt-4o",
+        "description": "Criação de conteúdo: 547 conteúdos/8 creators, LinkedIn posts, video cutting. Spawned by Amora.",
+        "workspace": "workspaces/content",
+        "agentDir": "workspaces/content",
+        "sandbox": true,
+        "spawnedBy": "amora",
+        "scope": {
+          "contents": 547,
+          "creators": 8
+        },
+        "tools": {
+          "allow": [
+            "read_file",
+            "write_file",
+            "list_directory"
+          ],
+          "deny": [
+            "shell_exec",
+            "delete_file",
+            "supabase_query",
+            "agent_message",
+            "web_search"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+services:
+  openclaw:
+    image: coollabsio/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-3000}:3000"
+      - "${OPENCLAW_UI_PORT:-4000}:4000"
+    environment:
+      - GITHUB_COPILOT_API_KEY=${GITHUB_COPILOT_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - OP_SERVICE_ACCOUNT_TOKEN=${OP_SERVICE_ACCOUNT_TOKEN}
+    volumes:
+      - ./openclaw.json:/app/openclaw.json:ro
+      - ./workspaces/amora:/app/workspaces/amora
+      - ./workspaces/planner:/app/workspaces/planner
+      - ./workspaces/orchestrator:/app/workspaces/orchestrator
+      - ./workspaces/dev:/app/workspaces/dev
+      - ./workspaces/qa:/app/workspaces/qa
+      - ./workspaces/scraper:/app/workspaces/scraper
+      - ./workspaces/content:/app/workspaces/content
+      - ./shared:/app/shared
+    networks:
+      - openclaw-net
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      supabase-api:
+        condition: service_started
+
+  supabase-db:
+    image: supabase/postgres:15.6.1.143
+    container_name: supabase-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD}
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+      - ./supabase/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - openclaw-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  supabase-api:
+    image: postgrest/postgrest:v12.0.2
+    container_name: supabase-api
+    restart: unless-stopped
+    ports:
+      - "8000:3000"
+    environment:
+      PGRST_DB_URI: postgres://postgres:${SUPABASE_DB_PASSWORD}@supabase-db:5432/postgres
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_ANON_KEY}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    networks:
+      - openclaw-net
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    networks:
+      - openclaw-net
+    depends_on:
+      - openclaw
+      - supabase-api
+
+volumes:
+  supabase-db-data:
+    driver: local
+
+networks:
+  openclaw-net:
+    driver: bridge
