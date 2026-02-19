@@ -108,6 +108,8 @@ Preencha **todas** as variáveis obrigatórias:
 
 | Variável                  | Como obter                                                      |
 |---------------------------|-----------------------------------------------------------------|
+| `OPENCLAW_GATEWAY_TOKEN`  | `openssl rand -hex 32`                                          |
+| `OPENAI_API_KEY`          | [OpenAI Platform](https://platform.openai.com/api-keys) (ou outro provider) |
 | `GITHUB_COPILOT_API_KEY`  | [GitHub Settings → Copilot](https://github.com/settings/copilot) |
 | `SUPABASE_DB_PASSWORD`    | Senha forte para o PostgreSQL local                             |
 | `SUPABASE_ANON_KEY`       | Gerado pelo Supabase ou use `openssl rand -base64 32`           |
@@ -117,17 +119,50 @@ Preencha **todas** as variáveis obrigatórias:
 | `DISCORD_BOT_TOKEN`       | [Discord Developer Portal](https://discord.com/developers/applications) |
 | `OP_SERVICE_ACCOUNT_TOKEN`| [1Password Service Account](https://developer.1password.com/docs/service-accounts/) |
 
-### 5. Configure o nginx com seu domínio
+### 5. Configure o Nginx do host como reverse proxy
+
+> O container Nginx serve HTTP puro na porta `127.0.0.1:8080`. O TLS é terminado pelo **Nginx do host** (VPS).
+
+Crie o arquivo de site no Nginx do host (substitua `SEU_DOMINIO` pelo seu domínio real):
 
 ```bash
-# Substitua SEU_DOMINIO pelo seu domínio real (ex: openclaw.meusite.com)
-sed -i 's/YOUR_DOMAIN_HERE/SEU_DOMINIO/g' nginx/conf.d/default.conf
+sudo nano /etc/nginx/sites-available/openclaw
 ```
 
-Ou edite manualmente:
+Cole a configuração abaixo:
+
+```nginx
+server {
+    listen 80;
+    server_name SEU_DOMINIO;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name SEU_DOMINIO;
+
+    ssl_certificate     /etc/letsencrypt/live/SEU_DOMINIO/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/SEU_DOMINIO/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+    }
+}
+```
 
 ```bash
-nano nginx/conf.d/default.conf
+sudo ln -s /etc/nginx/sites-available/openclaw /etc/nginx/sites-enabled/
+sudo nginx -t
 ```
 
 ### 6. Gere o certificado SSL (Let's Encrypt)
@@ -138,12 +173,13 @@ nano nginx/conf.d/default.conf
 > ```
 
 ```bash
-sudo apt-get install -y certbot
-sudo certbot certonly --standalone -d SEU_DOMINIO \
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d SEU_DOMINIO \
   --email SEU_EMAIL --agree-tos --non-interactive
+sudo systemctl reload nginx
 ```
 
-> Substitua `SEU_DOMINIO` pelo seu domínio (ex: `openclaw.meusite.com`) e `SEU_EMAIL` pelo seu e-mail real.
+> Substitua `SEU_DOMINIO` pelo seu domínio (ex: `openclaw.example.com`) e `SEU_EMAIL` pelo seu e-mail real.
 
 ### 7. Suba os serviços
 
@@ -172,14 +208,14 @@ docker compose logs -f
 # Listar containers e verificar status "Up"
 docker compose ps
 
-# Testar gateway OpenClaw
-curl -s http://localhost:3000/health
+# Testar gateway OpenClaw via container nginx (porta 8080 local)
+curl -s http://127.0.0.1:8080/health
 
 # Testar Supabase API (PostgREST) — deve retornar JSON com os 7 agentes do seed
-curl -s http://localhost:8000/agents
+curl -s http://127.0.0.1:8080/supabase/agents
 ```
 
-Resultado esperado: todos os containers com status **Up** e o endpoint `/agents` retornando os 7 agentes do seed.
+Resultado esperado: todos os containers com status **Up** e o endpoint `/supabase/agents` retornando os 7 agentes do seed.
 
 ### 9. Acesse o sistema
 

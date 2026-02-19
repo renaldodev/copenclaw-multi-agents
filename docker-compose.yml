@@ -3,17 +3,8 @@ services:
     image: coollabsio/openclaw:latest
     container_name: openclaw
     restart: unless-stopped
-    ports:
-      - "${OPENCLAW_GATEWAY_PORT:-3000}:3000"
-      - "${OPENCLAW_UI_PORT:-4000}:4000"
-    environment:
-      - GITHUB_COPILOT_API_KEY=${GITHUB_COPILOT_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - OP_SERVICE_ACCOUNT_TOKEN=${OP_SERVICE_ACCOUNT_TOKEN}
+    init: true
+    env_file: .env
     volumes:
       - ./openclaw.json:/app/openclaw.json:ro
       - ./workspaces/amora:/app/workspaces/amora
@@ -74,12 +65,9 @@ services:
     container_name: nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:8080:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
     networks:
       - openclaw-net
     depends_on:
