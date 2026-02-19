@@ -52,37 +52,164 @@ Renaldo (CEO / Human)
 
 ## Instalação
 
-### 1. Clone o repositório
+### 1. Instale o Docker e Docker Compose
+
+> Pule este passo se já tiver o Docker instalado.
+
+```bash
+# Instalar dependências
+sudo apt-get update
+sudo apt-get install -y curl git
+
+# Instalar Docker via script oficial
+curl -fsSL https://get.docker.com | sudo sh
+
+# Adicionar seu usuário ao grupo docker (evita usar sudo a cada comando)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verificar instalação
+docker --version
+docker compose version
+```
+
+### 2. Instale o 1Password CLI (Regra #4 — obrigatório)
+
+```bash
+# Ubuntu/Debian
+curl -sS https://downloads.1password.com/linux/keys/1password.asc \
+  | sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] \
+  https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" \
+  | sudo tee /etc/apt/sources.list.d/1password.list
+
+sudo apt-get update && sudo apt-get install -y 1password-cli
+
+# Verificar instalação
+op --version
+```
+
+### 3. Clone o repositório
 
 ```bash
 git clone https://github.com/renaldodev/copenclaw-multi-agents.git
 cd copenclaw-multi-agents
 ```
 
-### 2. Configure as variáveis de ambiente
+### 4. Configure as variáveis de ambiente
 
 ```bash
 cp .env.example .env
-nano .env   # preencha todas as variáveis
+nano .env
 ```
 
-### 3. Configure o nginx com seu domínio
+Preencha **todas** as variáveis obrigatórias:
+
+| Variável                  | Como obter                                                      |
+|---------------------------|-----------------------------------------------------------------|
+| `GITHUB_COPILOT_API_KEY`  | [GitHub Settings → Copilot](https://github.com/settings/copilot) |
+| `SUPABASE_DB_PASSWORD`    | Senha forte para o PostgreSQL local                             |
+| `SUPABASE_ANON_KEY`       | Gerado pelo Supabase ou use `openssl rand -base64 32`           |
+| `SUPABASE_SERVICE_KEY`    | Gerado pelo Supabase ou use `openssl rand -base64 32`           |
+| `SUPABASE_URL`            | `http://localhost:8000` (padrão local)                          |
+| `TELEGRAM_BOT_TOKEN`      | [@BotFather](https://t.me/BotFather) no Telegram               |
+| `DISCORD_BOT_TOKEN`       | [Discord Developer Portal](https://discord.com/developers/applications) |
+| `OP_SERVICE_ACCOUNT_TOKEN`| [1Password Service Account](https://developer.1password.com/docs/service-accounts/) |
+
+### 5. Configure o nginx com seu domínio
 
 ```bash
-nano nginx/conf.d/default.conf   # substitua YOUR_DOMAIN_HERE
+# Substitua SEU_DOMINIO pelo seu domínio real (ex: openclaw.meusite.com)
+sed -i 's/YOUR_DOMAIN_HERE/SEU_DOMINIO/g' nginx/conf.d/default.conf
 ```
 
-### 4. Execute o script de setup (em VPS)
+Ou edite manualmente:
+
+```bash
+nano nginx/conf.d/default.conf
+```
+
+### 6. Gere o certificado SSL (Let's Encrypt)
+
+> ⚠️ Antes de continuar, certifique-se de que a **porta 80 está aberta** no firewall:
+> ```bash
+> sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
+> ```
+
+```bash
+sudo apt-get install -y certbot
+sudo certbot certonly --standalone -d SEU_DOMINIO \
+  --email SEU_EMAIL --agree-tos --non-interactive
+```
+
+> Substitua `SEU_DOMINIO` pelo seu domínio (ex: `openclaw.meusite.com`) e `SEU_EMAIL` pelo seu e-mail real.
+
+### 7. Suba os serviços
+
+**Opção A — Script automático (recomendado para VPS nova):**
 
 ```bash
 sudo bash setup-digitalocean.sh
 ```
 
-Ou manualmente:
+**Opção B — Manualmente:**
 
 ```bash
+# Baixar imagens
+docker compose pull
+
+# Subir todos os serviços em background
+docker compose up -d
+
+# Acompanhar logs em tempo real
+docker compose logs -f
+```
+
+### 8. Verifique se tudo está rodando
+
+```bash
+# Listar containers e verificar status "Up"
+docker compose ps
+
+# Testar gateway OpenClaw
+curl -s http://localhost:3000/health
+
+# Testar Supabase API (PostgREST) — deve retornar JSON com os 7 agentes do seed
+curl -s http://localhost:8000/agents
+```
+
+Resultado esperado: todos os containers com status **Up** e o endpoint `/agents` retornando os 7 agentes do seed.
+
+### 9. Acesse o sistema
+
+| Serviço          | URL                              |
+|------------------|----------------------------------|
+| OpenClaw Gateway | `https://seu-dominio.com`        |
+| OpenClaw UI      | `https://seu-dominio.com:4000`   |
+| Supabase API     | `https://seu-dominio.com/supabase/` |
+
+---
+
+### Comandos úteis pós-instalação
+
+```bash
+# Parar todos os serviços
+docker compose down
+
+# Reiniciar um serviço específico
+docker compose restart openclaw
+
+# Ver logs de um serviço específico
+docker compose logs -f openclaw
+
+# Atualizar para nova versão
+git pull
 docker compose pull
 docker compose up -d
+
+# Acessar o banco de dados
+docker compose exec supabase-db psql -U postgres -d postgres
 ```
 
 ---
